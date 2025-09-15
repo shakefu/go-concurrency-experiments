@@ -66,6 +66,40 @@ func TestOrderedLogs(t *testing.T) {
 		}
 	})
 
+	t.Run("out of space", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		done := make(chan bool)
+		o := &OrderedLogs{}
+		o.Out = buf
+		o.Size = 1
+
+		go func() {
+			defer func() {
+				close(done)
+				r := recover()
+				if r == nil {
+					t.Errorf("The code did not panic")
+				}
+				if r != "Out of space" {
+					t.Errorf("expected 'Out of space', got '%v'", r)
+				}
+			}()
+
+			o.PrintThird("three")
+			o.PrintSecond("two")
+			o.PrintFirst("one")
+
+			o.PrintSecond("2")
+			o.PrintFirst("1")
+			o.PrintThird("3")
+		}()
+
+		waitForDone(done)
+
+		// This should be idempotent
+		o.Wait()
+	})
+
 	t.Run("multiple statements", func(t *testing.T) {
 		buf := &bytes.Buffer{}
 		done := make(chan bool)
@@ -101,5 +135,4 @@ func TestOrderedLogs(t *testing.T) {
 			t.Errorf("expected: '%v', got '%v'", e, b)
 		}
 	})
-
 }

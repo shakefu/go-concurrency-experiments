@@ -82,26 +82,27 @@ func (o *OrderedLogs) Close() {
 		return
 	}
 
-	select {
-	case <-o.first:
-		close(o.first)
-	default:
-		break
+	o.wait.Store(true)
+
+	closer := func(c chan *string) {
+		select {
+		case _, ok := <-c:
+			if ok {
+				close(c)
+			}
+		default:
+			close(c)
+		}
 	}
 
-	select {
-	case <-o.second:
-		close(o.second)
-	default:
-		break
-	}
+	// Close all our queues
+	closer(o.first)
+	closer(o.second)
+	closer(o.third)
 
-	select {
-	case <-o.third:
-		close(o.third)
-	default:
-		break
-	}
+	// Waiting to ensure the printLoop has exited before we continue synchronous
+	// code
+	o.wg.Wait()
 }
 
 // printLoop will loop wait and print one of each log type, in order until it is
